@@ -1,0 +1,47 @@
+name: Build NovaPlay Release APK (Public Runner)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Public Repo
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        cache: gradle
+
+    - name: Clone Private Source Code Securely
+      env:
+        GH_PAT: ${{ secrets.GH_PAT }}
+        PRIVATE_URL: ${{ secrets.PRIVATE_REPO_URL }}
+      run: |
+        # Inyectar el Token Personal en la URL del repositorio privado
+        authenticated_url=$(echo "$PRIVATE_URL" | sed "s#https://#https://${GH_PAT}@#")
+        git clone "$authenticated_url" private_source
+        
+        # Traer los archivos del repo privado al directorio de compilación
+        rsync -av --exclude='.git' private_source/ .
+        rm -rf private_source
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Build Release APK
+      run: ./gradlew assembleRelease
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: novaplay-release-apk
+        path: novaplay/build/outputs/apk/release/novaplay-release.apk
