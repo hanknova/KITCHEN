@@ -1,4 +1,4 @@
-name: Build NovaPlay Release APK (Cloud CI/CD)
+name: Build and Push NovaPlay Beta APK
 
 on:
   workflow_dispatch:
@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout Public Repo
@@ -23,7 +25,7 @@ jobs:
         authenticated_url=$(echo "$PRIVATE_URL" | sed "s#https://#https://${GH_PAT}@#")
         git clone "$authenticated_url" private_source
         
-        # Copiar los archivos del repo privado al directorio actual del runner
+        # Copiar los archivos del repo privado al directorio actual del runner (KITCHEN)
         rsync -av --exclude='.git' private_source/ .
         rm -rf private_source
 
@@ -47,12 +49,13 @@ jobs:
     - name: Build NovaPlay Release APK Only
       run: ./gradlew :novaplay:assembleRelease
 
-    - name: Rename to novaplaybeta.apk
+    - name: Commit and Push APK to KITCHEN
       run: |
-        cp novaplay/build/outputs/apk/release/novaplay-release.apk novaplaybeta.apk
-
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: novaplaybeta
-        path: novaplaybeta.apk
+        git config --local user.email "action@github.com"
+        git config --local user.name "KITCHEN Build Bot"
+        
+        mkdir -p apks
+        cp novaplay/build/outputs/apk/release/novaplay-release.apk apks/novaplaybeta.apk
+        
+        git add apks/novaplaybeta.apk
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-build: Update novaplaybeta.apk [skip ci]" && git push)
